@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DİVİNA – Fal & Kehanet</title>
+<title>Divina – Fal & Kehanet</title>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&display=swap" rel="stylesheet">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -294,6 +294,55 @@
   .wa-icon { fill: var(--gold); }
   .ig-icon { fill: #d4a0f0; }
 
+  /* ── MUTE BUTTON ── */
+  #mute-btn {
+    position: fixed;
+    bottom: 28px;
+    right: 28px;
+    z-index: 1000;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: 1px solid rgba(201,168,76,0.4);
+    background: rgba(8,4,14,0.75);
+    backdrop-filter: blur(10px);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color 0.3s, transform 0.2s, box-shadow 0.3s;
+    color: var(--gold);
+  }
+  #mute-btn:hover {
+    border-color: var(--gold);
+    box-shadow: 0 0 20px rgba(201,168,76,0.25);
+    transform: scale(1.08);
+  }
+  #mute-btn svg { width: 20px; height: 20px; fill: var(--gold); transition: opacity 0.2s; }
+
+  /* ── SMOKE OVERLAY ── */
+  #smoke-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    pointer-events: none;
+    background: #030303;
+  }
+  #smoke-overlay canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+  #smoke-overlay.fade-out {
+    animation: smokeDissolve 2.5s ease-in-out forwards;
+  }
+  @keyframes smokeDissolve {
+    0%   { opacity: 1; }
+    60%  { opacity: 0.7; }
+    100% { opacity: 0; pointer-events: none; }
+  }
+
   /* ── FOOTER ── */
   .footer {
     margin-top: 64px;
@@ -319,6 +368,20 @@
 </head>
 <body>
 
+<!-- AUDIO -->
+<audio id="bg-audio" src="741hz.mp3" loop preload="auto"></audio>
+
+<!-- MUTE BUTTON -->
+<button id="mute-btn" title="Sesi Kapat/Aç" aria-label="Sesi kapat veya aç">
+  <svg id="icon-sound" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+  <svg id="icon-mute" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="display:none"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>
+</button>
+
+<!-- SMOKE OVERLAY -->
+<div id="smoke-overlay">
+  <canvas id="smoke-canvas"></canvas>
+</div>
+
 <!-- BACKGROUND -->
 <div class="bg-canvas">
   <canvas id="stars"></canvas>
@@ -343,7 +406,7 @@
     <div class="line right"></div>
   </div>
 
-  <h1 class="brand">DİVİNA</h1>
+  <h1 class="brand">Divina</h1>
   <p class="brand-tagline">Fal &amp; Kehanet</p>
 
   <div class="divider">
@@ -452,6 +515,86 @@
 </div><!-- /wrapper -->
 
 <script>
+/* ── SMOKE EFFECT ── */
+(function(){
+  const overlay = document.getElementById('smoke-overlay');
+  const sc = document.getElementById('smoke-canvas');
+  const ctx = sc.getContext('2d');
+
+  sc.width = window.innerWidth;
+  sc.height = window.innerHeight;
+
+  const W = sc.width, H = sc.height;
+  let particles = [];
+  let animId;
+
+  function rand(a, b){ return a + Math.random() * (b - a); }
+
+  class Smoke {
+    constructor(){
+      this.reset();
+    }
+    reset(){
+      this.x = rand(0, W);
+      this.y = rand(0, H);
+      this.r = rand(60, 180);
+      this.vx = rand(-0.4, 0.4);
+      this.vy = rand(-0.6, -0.15);
+      this.alpha = rand(0.25, 0.55);
+      this.grow = rand(0.3, 0.9);
+      this.life = 0;
+      this.maxLife = rand(120, 220);
+      this.hue = rand(260, 310); // mor-lila tonları
+    }
+    update(){
+      this.x += this.vx;
+      this.y += this.vy;
+      this.r += this.grow;
+      this.life++;
+      if(this.life > this.maxLife) this.reset();
+    }
+    draw(){
+      const progress = this.life / this.maxLife;
+      const a = this.alpha * (1 - progress);
+      const grad = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.r);
+      grad.addColorStop(0, `hsla(${this.hue}, 40%, 18%, ${a})`);
+      grad.addColorStop(0.5, `hsla(${this.hue}, 25%, 10%, ${a * 0.5})`);
+      grad.addColorStop(1, `hsla(0, 0%, 2%, 0)`);
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+      ctx.fillStyle = grad;
+      ctx.fill();
+    }
+  }
+
+  for(let i = 0; i < 55; i++){
+    const p = new Smoke();
+    p.life = rand(0, p.maxLife); // stagger başlangıç
+    particles.push(p);
+  }
+
+  function loop(){
+    ctx.clearRect(0, 0, W, H);
+    // koyu arka plan
+    ctx.fillStyle = '#030303';
+    ctx.fillRect(0, 0, W, H);
+    particles.forEach(p => { p.update(); p.draw(); });
+    animId = requestAnimationFrame(loop);
+  }
+  loop();
+
+  // 1.8sn sonra yavaşça kaybol
+  setTimeout(() => {
+    overlay.classList.add('fade-out');
+    overlay.addEventListener('animationend', () => {
+      cancelAnimationFrame(animId);
+      overlay.style.display = 'none';
+    }, { once: true });
+  }, 1800);
+})();
+</script>
+
+<script>
 /* Stars */
 (function(){
   const c = document.getElementById('stars');
@@ -497,15 +640,52 @@ function toggle(id){
   const card = document.getElementById('card-'+id);
   const btn  = card.querySelector('.card-btn');
   const isOpen = card.classList.contains('open');
-  // Close all
   document.querySelectorAll('.card').forEach(c=>c.classList.remove('open'));
   document.querySelectorAll('.card-btn').forEach(b=>b.setAttribute('aria-expanded','false'));
-  // Open clicked if it was closed
   if(!isOpen){
     card.classList.add('open');
     btn.setAttribute('aria-expanded','true');
   }
 }
+
+/* Audio & Mute */
+(function(){
+  const audio = document.getElementById('bg-audio');
+  const btn   = document.getElementById('mute-btn');
+  const iconSound = document.getElementById('icon-sound');
+  const iconMute  = document.getElementById('icon-mute');
+
+  audio.volume = 0.18;
+
+  // Tarayıcı autoplay politikası: ilk kullanıcı etkileşiminde başlat
+  let started = false;
+  function startAudio(){
+    if(started) return;
+    started = true;
+    audio.play().catch(()=>{});
+    document.removeEventListener('click', startAudio);
+    document.removeEventListener('touchstart', startAudio);
+  }
+  document.addEventListener('click', startAudio);
+  document.addEventListener('touchstart', startAudio);
+  // Duman bittikten sonra da dene
+  setTimeout(()=>{ audio.play().catch(()=>{}); started = true; }, 4500);
+
+  btn.addEventListener('click', function(e){
+    e.stopPropagation();
+    if(audio.muted){
+      audio.muted = false;
+      iconSound.style.display = '';
+      iconMute.style.display  = 'none';
+      btn.title = 'Sesi Kapat';
+    } else {
+      audio.muted = true;
+      iconSound.style.display = 'none';
+      iconMute.style.display  = '';
+      btn.title = 'Sesi Aç';
+    }
+  });
+})();
 </script>
 </body>
 </html>
